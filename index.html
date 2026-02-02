@@ -1,10 +1,3 @@
-<!--
-GlassBlocks
-STABLE VERSION + MINIMAL ADDITIONS
-Audio fixed
-Flip/Rotate abilities added safely
--->
-
 <!DOCTYPE html>
 <html lang="en">
 <head>
@@ -16,65 +9,109 @@ Flip/Rotate abilities added safely
 <link href="https://fonts.googleapis.com/css2?family=Shizuru&display=swap" rel="stylesheet">
 
 <style>
-/* --- (CSS unchanged from last stable version) --- */
+:root{
+  --gap:6px;
+  --radius:10px;
+  --pad:10px;
+}
+
+*{box-sizing:border-box;user-select:none}
+
 body{
   margin:0;
-  font-family:'Shizuru', cursive;
-  background: radial-gradient(circle at top,#1e293b,#0f172a);
+  font-family:'Shizuru',cursive;
+  background:radial-gradient(circle at top,#1e293b,#0f172a);
   color:white;
+  min-height:100vh;
   display:flex;
   justify-content:center;
   align-items:center;
-  min-height:100vh;
   overflow:hidden;
 }
-.game{ width:520px; max-width:94vw; }
+
+/* GAME */
+.game{
+  width:min(520px,94vw);
+  display:flex;
+  flex-direction:column;
+  gap:16px;
+}
+
+/* BOARD */
 .board{
+  aspect-ratio:1;
   display:grid;
   grid-template-columns:repeat(8,1fr);
-  gap:6px;
-  padding:6px;
+  gap:var(--gap);
+  padding:var(--gap);
   background:rgba(30,41,59,.75);
   border-radius:22px;
-  aspect-ratio:1;
 }
+
 .cell{
   background:rgba(15,23,42,.65);
-  border-radius:10px;
+  border-radius:var(--radius);
 }
-.cell.filled{ box-shadow:0 0 12px var(--glow); }
+.cell.filled{
+  box-shadow:0 0 12px var(--glow);
+}
+
+/* TRAY */
 .tray{
-  margin-top:16px;
-  padding:22px;
-  min-height:210px;
   background:rgba(30,41,59,.55);
   border-radius:22px;
+  padding:22px;
+  min-height:220px;
 }
-.pieces{ display:flex; justify-content:space-around; height:150px; }
-.piece{ display:grid; gap:6px; padding:10px; cursor:grab; }
-.piece.dragging{ opacity:0; }
+.pieces{
+  display:flex;
+  justify-content:space-around;
+  align-items:center;
+  height:160px;
+}
+
+/* PIECES */
+.piece{
+  display:grid;
+  gap:var(--gap);
+  padding:var(--pad);
+  cursor:grab;
+}
+.piece.dragging{opacity:0}
+
 .piece-cell{
-  width:24px; height:24px;
+  width:22px;
+  height:22px;
   border-radius:6px;
   background:linear-gradient(135deg,var(--c1),var(--c2));
+  box-shadow:0 0 8px var(--c2);
 }
+
+/* DRAG PROXY */
 .drag-proxy{
   position:fixed;
   pointer-events:none;
   display:grid;
-  gap:6px;
-  padding:10px;
-  z-index:999;
+  gap:var(--gap);
+  padding:var(--pad);
+  z-index:1000;
 }
+
+/* UI */
 .audio-btn{
-  position:fixed; bottom:14px; right:14px;
+  position:fixed;
+  bottom:14px;
+  right:14px;
   background:rgba(30,41,59,.7);
   padding:10px 14px;
   border-radius:999px;
   cursor:pointer;
 }
+
 .ability{
-  position:fixed; top:14px; left:50%;
+  position:fixed;
+  top:14px;
+  left:50%;
   transform:translateX(-50%);
   opacity:.85;
 }
@@ -97,82 +134,71 @@ body{
 <div id="proxy" class="drag-proxy" style="display:none;"></div>
 
 <script>
-/* ---------- AUDIO (stable) ---------- */
-const bgm = document.getElementById('bgm');
-const sfx = document.getElementById('sfx');
-const audioBtn = document.getElementById('audioBtn');
+/* AUDIO */
+const bgm=document.getElementById('bgm');
+const sfx=document.getElementById('sfx');
+const audioBtn=document.getElementById('audioBtn');
+let audio=false, unlocked=false;
 
-let audioEnabled = false;
-let unlocked = false;
-
-function unlockAudio(){
+function unlock(){
   if(unlocked) return;
-  unlocked = true;
-  bgm.volume = .35;
-  sfx.volume = .6;
+  unlocked=true;
+  bgm.volume=.35; sfx.volume=.6;
   bgm.play().then(()=>bgm.pause()).catch(()=>{});
 }
-audioBtn.onclick = () => {
-  unlockAudio();
-  audioEnabled = !audioEnabled;
-  audioBtn.textContent = audioEnabled ? '🔊' : '🔇';
-  if(audioEnabled) bgm.play().catch(()=>{});
-  else bgm.pause();
+audioBtn.onclick=()=>{
+  unlock();
+  audio=!audio;
+  audioBtn.textContent=audio?'🔊':'🔇';
+  audio?bgm.play().catch(()=>{}):bgm.pause();
 };
-window.addEventListener('pointerdown', unlockAudio, { once:true });
-function playClick(){
-  if(!audioEnabled) return;
-  sfx.currentTime = 0;
-  sfx.play().catch(()=>{});
-}
+window.addEventListener('pointerdown',unlock,{once:true});
+const click=()=>{if(audio){sfx.currentTime=0;sfx.play().catch(()=>{})}};
 
-/* ---------- GAME ---------- */
-const GRID = 8;
-const COLORS = [
+/* GAME */
+const GRID=8;
+const COLORS=[
   {c1:'#22d3ee',c2:'#67e8f9'},
   {c1:'#a78bfa',c2:'#c4b5fd'},
   {c1:'#34d399',c2:'#6ee7b7'},
   {c1:'#f472b6',c2:'#f9a8d4'},
   {c1:'#facc15',c2:'#fde68a'}
 ];
-const SHAPES = [
+const SHAPES=[
   [[1]],[[1,1]],[[1,1,1]],[[1,1,1,1]],
   [[1,1],[1,1]],[[1,1,1],[0,1,0]],
   [[0,1,1],[1,1,0]],[[1,0],[1,0],[1,1]]
 ];
 
-let board = Array.from({length:GRID},()=>Array(GRID).fill(null));
-let ability = null; // 'flip' | 'rotate'
+const board=[...Array(GRID)].map(()=>Array(GRID).fill(null));
+const boardEl=document.getElementById('board');
+const piecesEl=document.getElementById('pieces');
+const proxy=document.getElementById('proxy');
+const abilityEl=document.getElementById('ability');
 
-const boardEl = document.getElementById('board');
-const piecesEl = document.getElementById('pieces');
-const proxy = document.getElementById('proxy');
-const abilityEl = document.getElementById('ability');
+let ability=null;
 
-/* board render */
-for(let r=0;r<GRID;r++)
-  for(let c=0;c<GRID;c++){
-    const d=document.createElement('div');
-    d.className='cell';
-    d.dataset.r=r; d.dataset.c=c;
-    boardEl.appendChild(d);
-  }
+/* BUILD BOARD */
+for(let r=0;r<GRID;r++)for(let c=0;c<GRID;c++){
+  const d=document.createElement('div');
+  d.className='cell'; d.dataset.r=r; d.dataset.c=c;
+  boardEl.appendChild(d);
+}
 
-/* helpers */
-const flip = s => s.map(r=>[...r].reverse());
-const rotate = s => s[0].map((_,i)=>s.map(r=>r[i]).reverse());
-const clone = s => s.map(r=>[...r]);
+/* HELPERS */
+const clone=s=>s.map(r=>[...r]);
+const flip=s=>s.map(r=>[...r].reverse());
+const rot=s=>s[0].map((_,i)=>s.map(r=>r[i]).reverse());
 
-/* spawn */
+/* SPAWN */
 function spawn(){
   piecesEl.innerHTML='';
   for(let i=0;i<3;i++){
-    const shape = clone(SHAPES[Math.random()*SHAPES.length|0]);
-    const col = COLORS[Math.random()*COLORS.length|0];
+    const shape=clone(SHAPES[Math.random()*SHAPES.length|0]);
+    const col=COLORS[Math.random()*COLORS.length|0];
     const p=document.createElement('div');
     p.className='piece';
-    p._shape=shape;
-    p._color=col;
+    p._shape=shape; p._color=col;
     p.style.gridTemplateColumns=`repeat(${shape[0].length},1fr)`;
     shape.flat().forEach(v=>{
       const d=document.createElement('div');
@@ -189,22 +215,15 @@ function spawn(){
 }
 spawn();
 
-/* drag */
+/* DRAG */
 let drag=null;
 function startDrag(e,p){
-  unlockAudio();
-  drag={
-    piece:p,
-    shape:clone(p._shape),
-    color:p._color,
-    ox:e.offsetX, oy:e.offsetY
-  };
+  unlock();
+  drag={p,shape:clone(p._shape),color:p._color,ox:e.offsetX,oy:e.offsetY};
 
-  if(ability==='flip') drag.shape = flip(drag.shape);
-  if(ability==='rotate') drag.shape = rotate(drag.shape);
-
-  ability=null;
-  abilityEl.textContent='';
+  if(ability==='flip') drag.shape=flip(drag.shape);
+  if(ability==='rotate') drag.shape=rot(drag.shape);
+  ability=null; abilityEl.textContent='';
 
   p.classList.add('dragging');
   proxy.innerHTML='';
@@ -240,7 +259,6 @@ function canPlace(s,r,c){
 function drop(e){
   window.onpointermove=null;
   window.onpointerup=null;
-
   const rect=boardEl.getBoundingClientRect();
   const size=rect.width/GRID;
   const r=Math.round((e.clientY-rect.top)/size);
@@ -250,57 +268,45 @@ function drop(e){
     drag.shape.forEach((row,i)=>row.forEach((v,j)=>{
       if(v){
         board[r+i][c+j]=drag.color;
-        const el=document.querySelector(
-          `.cell[data-r="${r+i}"][data-c="${c+j}"]`);
+        const el=document.querySelector(`.cell[data-r="${r+i}"][data-c="${c+j}"]`);
         el.classList.add('filled');
-        el.style.background=`linear-gradient(135deg,
-          ${drag.color.c1},${drag.color.c2})`;
+        el.style.background=`linear-gradient(135deg,${drag.color.c1},${drag.color.c2})`;
         el.style.setProperty('--glow',drag.color.c2);
       }
     }));
-    playClick();
-    drag.piece.remove();
+    click();
+    drag.p.remove();
     clearLines();
     if(!piecesEl.children.length) spawn();
   }else{
-    drag.piece.classList.remove('dragging');
+    drag.p.classList.remove('dragging');
   }
   proxy.style.display='none';
   drag=null;
 }
 
-/* clearing + ability chance */
+/* CLEAR + ABILITY */
 function clearLines(){
   let cleared=false;
-
   for(let r=0;r<GRID;r++)
     if(board[r].every(v=>v)){
       board[r].fill(null);
-      document
-        .querySelectorAll(`.cell[data-r="${r}"]`)
-        .forEach(c=>c.className='cell');
+      document.querySelectorAll(`.cell[data-r="${r}"]`).forEach(c=>c.className='cell');
       cleared=true;
     }
 
   for(let c=0;c<GRID;c++)
     if(board.every(r=>r[c])){
       board.forEach(r=>r[c]=null);
-      document
-        .querySelectorAll(`.cell[data-c="${c}"]`)
-        .forEach(cel=>cel.className='cell');
+      document.querySelectorAll(`.cell[data-c="${c}"]`).forEach(c=>c.className='cell');
       cleared=true;
     }
 
   if(cleared){
-    playClick();
+    click();
     const roll=Math.random();
-    if(roll<0.15){
-      ability='flip';
-      abilityEl.textContent='Flip ready ⬌';
-    }else if(roll<0.30){
-      ability='rotate';
-      abilityEl.textContent='Rotate ready ⟳';
-    }
+    if(roll<.15){ability='flip';abilityEl.textContent='Flip Ready ⬌'}
+    else if(roll<.30){ability='rotate';abilityEl.textContent='Rotate Ready ⟳'}
   }
 }
 </script>

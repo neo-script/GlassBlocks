@@ -30,41 +30,36 @@ body{
   overflow:hidden;
 }
 
-/* 🌧️ random rain */
+/* emoji rain */
 .emoji-rain{
   position:fixed;
   inset:0;
   pointer-events:none;
   z-index:0;
-  overflow:hidden;
 }
 .emoji{
   position:absolute;
   top:-20%;
   opacity:.32;
-  animation-name: fall, drift;
-  animation-timing-function: linear, ease-in-out;
-  animation-iteration-count: infinite, infinite;
-  will-change: transform;
+  animation: fall linear infinite, drift ease-in-out infinite;
 }
-@keyframes fall { to { transform: translateY(130vh); } }
+@keyframes fall{ to{ transform:translateY(130vh); } }
 @keyframes drift{
   0%{ margin-left:0; }
-  50%{ margin-left:26px; }
+  50%{ margin-left:24px; }
   100%{ margin-left:0; }
 }
 
-/* game layer */
+/* game layout */
 .game{
   position:relative;
   z-index:2;
-  width:min(520px, 94vw);
+  width:min(520px,94vw);
   display:flex;
   flex-direction:column;
   gap:16px;
 }
 
-/* header */
 .header{
   display:flex;
   justify-content:space-between;
@@ -73,61 +68,43 @@ body{
 
 /* board */
 .board{
-  width:100%;
   max-width:420px;
+  aspect-ratio:1;
   align-self:center;
-
   display:grid;
   grid-template-columns:repeat(8,1fr);
   gap:var(--gap);
   padding:var(--gap);
-
   background:rgba(30,41,59,.75);
   border-radius:22px;
   box-shadow:0 25px 60px rgba(0,0,0,.6);
-  backdrop-filter: blur(10px);
-
-  aspect-ratio:1;
 }
 
 .cell{
   background:rgba(15,23,42,.65);
   border-radius:var(--radius);
-  box-shadow: inset 0 3px 6px rgba(0,0,0,.35);
 }
-
 .cell.filled{
-  box-shadow:
-    0 0 0 1px rgba(255,255,255,.12),
-    0 0 12px var(--glow);
+  box-shadow:0 0 12px var(--glow);
 }
-
 .cell.clearing{
-  animation: clear .42s ease-out forwards;
+  animation:clear .4s forwards;
 }
 @keyframes clear{
-  0%{ filter:brightness(2.2); opacity:1; transform:scale(1); }
-  100%{ filter:brightness(1); opacity:0; transform:scale(.75); }
+  to{ opacity:0; transform:scale(.7); }
 }
 
-/* tray — taller for 1×4 */
+/* tray */
 .tray{
   background:rgba(30,41,59,.55);
   border-radius:22px;
-  padding:20px 22px;
-
+  padding:20px;
   min-height:210px;
-  box-shadow:
-    inset 0 1px 0 rgba(255,255,255,.25),
-    0 18px 40px rgba(0,0,0,.55);
-  backdrop-filter: blur(12px);
 }
-
 .pieces{
   display:flex;
   justify-content:space-around;
   align-items:center;
-  gap:14px;
   height:150px;
 }
 
@@ -137,9 +114,8 @@ body{
   gap:var(--gap);
   padding:var(--piece-pad);
   cursor:grab;
-  touch-action:none;
 }
-.piece.dragging{ opacity:0; pointer-events:none; }
+.piece.dragging{ opacity:0; }
 
 .piece-cell{
   border-radius:6px;
@@ -155,50 +131,17 @@ body{
   gap:var(--gap);
   padding:var(--piece-pad);
   z-index:9999;
-  filter: drop-shadow(0 22px 32px rgba(0,0,0,.6));
-}
-.drag-proxy.wiggle{
-  animation: wiggle .9s ease-in-out infinite;
-}
-@keyframes wiggle{
-  0%{ transform:translate(0,0) scale(1.06); }
-  50%{ transform:translate(0,-4px) scale(1.06); }
-  100%{ transform:translate(0,0) scale(1.06); }
+  filter:drop-shadow(0 20px 30px rgba(0,0,0,.6));
 }
 
-/* game over overlay */
-.overlay{
+/* ability indicator */
+.ability{
   position:fixed;
-  inset:0;
-  background:rgba(0,0,0,.72);
-  display:none;
-  align-items:center;
-  justify-content:center;
-  z-index:10;
-}
-.overlay.show{ display:flex; }
-
-.modal{
-  background:rgba(30,41,59,.92);
-  border:1px solid rgba(255,255,255,.08);
-  padding:30px;
-  border-radius:20px;
-  text-align:center;
-  box-shadow:0 30px 60px rgba(0,0,0,.65);
-  width:min(420px, 88vw);
-}
-.modal h2{ margin:0 0 6px; }
-.modal p{ margin:8px 0 0; opacity:.9; }
-
-.modal button{
-  margin-top:14px;
-  padding:10px 18px;
-  border-radius:999px;
-  border:none;
-  cursor:pointer;
-  font-family:'Shizuru', cursive;
-  background: linear-gradient(135deg, #22d3ee, #0ea5e9);
-  color:#0f172a;
+  top:14px;
+  left:50%;
+  transform:translateX(-50%);
+  font-size:18px;
+  opacity:.85;
 }
 
 /* audio button */
@@ -206,32 +149,43 @@ body{
   position:fixed;
   bottom:14px;
   right:14px;
-  z-index:20;
   background:rgba(30,41,59,.7);
-  border:1px solid rgba(255,255,255,.2);
   border-radius:999px;
   padding:10px 14px;
   cursor:pointer;
-  font-family:'Shizuru', cursive;
-  color:white;
-  backdrop-filter: blur(6px);
 }
-.audio-btn.off{ opacity:.65; }
+
+/* game over */
+.overlay{
+  position:fixed;
+  inset:0;
+  background:rgba(0,0,0,.7);
+  display:none;
+  align-items:center;
+  justify-content:center;
+}
+.overlay.show{ display:flex; }
+.modal{
+  background:rgba(30,41,59,.9);
+  padding:30px;
+  border-radius:20px;
+}
 </style>
 </head>
 
 <body>
-<!-- Audio assets in repo root -->
-<audio id="bgm" src="music.mp3" loop preload="auto"></audio>
-<audio id="sfx" src="click.mp3" preload="auto"></audio>
-<button id="audioBtn" class="audio-btn off" aria-label="Toggle audio">🔇</button>
+
+<audio id="bgm" src="music.mp3" loop></audio>
+<audio id="sfx" src="click.mp3"></audio>
+
+<div id="ability" class="ability"></div>
+<button id="audioBtn" class="audio-btn">🔇</button>
 
 <div class="emoji-rain" id="rain"></div>
 
 <div class="game">
   <div class="header">
     <div>Score: <span id="score">0</span></div>
-    <div>Best: <span id="best">0</span></div>
   </div>
 
   <div id="board" class="board"></div>
@@ -247,532 +201,233 @@ body{
   <div class="modal">
     <h2>No Space Left</h2>
     <p>Final Score: <span id="finalScore">0</span></p>
-    <button id="restartBtn">Restart</button>
+    <button onclick="location.reload()">Restart</button>
   </div>
 </div>
 
 <script>
-/* =========================
-   AUDIO SYSTEM
-========================= */
+/* ---------- AUDIO ---------- */
 const bgm = document.getElementById('bgm');
 const sfx = document.getElementById('sfx');
 const audioBtn = document.getElementById('audioBtn');
+let audioOn = false;
+let unlocked = false;
 
-let audioEnabled = false;
-let audioUnlocked = false;
-
-function unlockAudioOnce(){
-  if (audioUnlocked) return;
-  audioUnlocked = true;
-  // Attempt a silent play/pause to unlock on iOS-like policies
-  bgm.volume = 0.35;
-  sfx.volume = 0.65;
-  bgm.play().then(() => bgm.pause()).catch(() => {});
+function unlockAudio(){
+  if(unlocked) return;
+  unlocked = true;
+  bgm.volume = .35;
+  sfx.volume = .6;
+  bgm.play().then(()=>bgm.pause()).catch(()=>{});
 }
-
-function setAudioUI(){
-  audioBtn.textContent = audioEnabled ? '🔊' : '🔇';
-  audioBtn.classList.toggle('off', !audioEnabled);
-}
-
-function enableAudio(){
-  unlockAudioOnce();
-  audioEnabled = true;
-  setAudioUI();
-  bgm.volume = 0.35;
-  bgm.play().catch(()=>{});
-}
-
-function disableAudio(){
-  audioEnabled = false;
-  setAudioUI();
-  bgm.pause();
-}
-
-audioBtn.addEventListener('click', () => {
-  unlockAudioOnce();
-  if (!audioEnabled) enableAudio();
-  else disableAudio();
-});
-
-// Start music on first user gesture (browser requirement)
-window.addEventListener('pointerdown', () => {
-  unlockAudioOnce();
-  if (!audioEnabled) enableAudio();
-}, { once: true });
-
-function playClick(){
-  if (!audioEnabled) return;
-  try{
+audioBtn.onclick = () => {
+  unlockAudio();
+  audioOn = !audioOn;
+  audioBtn.textContent = audioOn ? '🔊' : '🔇';
+  if(audioOn) bgm.play().catch(()=>{});
+  else bgm.pause();
+};
+function clickSound(){
+  if(audioOn){
     sfx.currentTime = 0;
     sfx.play().catch(()=>{});
-  } catch {}
+  }
 }
+window.addEventListener('pointerdown', unlockAudio, { once:true });
 
-/* =========================
-   RAIN
-========================= */
+/* ---------- RAIN ---------- */
 const rain = document.getElementById('rain');
-const SYMBOLS = ['✯','✦','✧','✩','★','☆','⭑'];
-const RAIN_COUNT = 55;
-
-for (let i=0; i<RAIN_COUNT; i++){
-  const s = document.createElement('span');
-  s.className = 'emoji';
-  s.textContent = SYMBOLS[Math.random()*SYMBOLS.length|0];
-
-  const left = Math.random()*100;
-  const size = 12 + Math.random()*18;
-  const fallDur = 10 + Math.random()*18;
-  const driftDur = 3.5 + Math.random()*4.5;
-  const delay = -Math.random()*fallDur;
-
-  s.style.left = left + '%';
-  s.style.fontSize = size + 'px';
-  s.style.animationDuration = `${fallDur}s, ${driftDur}s`;
-  s.style.animationDelay = `${delay}s, 0s`;
-
-  rain.appendChild(s);
+['✯','✦','✧','✩','★','☆','⭑'].forEach(()=>{});
+for(let i=0;i<50;i++){
+  const e=document.createElement('span');
+  e.className='emoji';
+  e.textContent=['✯','✦','✧','✩','★','☆','⭑'][Math.random()*7|0];
+  e.style.left=Math.random()*100+'%';
+  e.style.fontSize=12+Math.random()*18+'px';
+  e.style.animationDuration=(10+Math.random()*20)+'s';
+  e.style.animationDelay=(-Math.random()*20)+'s';
+  rain.appendChild(e);
 }
 
-/* =========================
-   GAME DATA
-========================= */
-const GRID = 8;
-const HAND_SCALE = 0.85;
-const CLEAR_MS = 420;
-
-const COLORS = [
-  {c1:'#22d3ee', c2:'#67e8f9'},
-  {c1:'#a78bfa', c2:'#c4b5fd'},
-  {c1:'#34d399', c2:'#6ee7b7'},
-  {c1:'#f472b6', c2:'#f9a8d4'},
-  {c1:'#facc15', c2:'#fde68a'},
+/* ---------- GAME ---------- */
+const GRID=8;
+const COLORS=[
+  {c1:'#22d3ee',c2:'#67e8f9'},
+  {c1:'#a78bfa',c2:'#c4b5fd'},
+  {c1:'#34d399',c2:'#6ee7b7'},
+  {c1:'#f472b6',c2:'#f9a8d4'},
+  {c1:'#facc15',c2:'#fde68a'}
 ];
 
-const BASE_SHAPES = [
-  [[1]],
-  [[1,1]],
-  [[1,1,1]],
-  [[1,1,1,1]],
-  [[1,1],[1,1]],
-  [[1,1,1],[0,1,0]],
-  [[0,1,1],[1,1,0]],
-  [[1,0],[1,0],[1,1]],
-  [[1,1,1],[1,0,0]],
-  [[0,1,0],[1,1,1],[0,1,0]],
-  [[1,0,1],[1,1,1]],
+const BASE=[
+  [[1]],[[1,1]],[[1,1,1]],[[1,1,1,1]],
+  [[1,1],[1,1]],[[1,1,1],[0,1,0]],
+  [[0,1,1],[1,1,0]],[[1,0],[1,0],[1,1]]
 ];
 
-function rotate(shape){ return shape[0].map((_,i)=>shape.map(r=>r[i]).reverse()); }
-function flip(shape){ return shape.map(r=>[...r].reverse()); }
-function key(shape){ return shape.map(r=>r.join('')).join('|'); }
-function genShapes(base){
-  const m = new Map();
-  for(const s of base){
-    let cur = s;
-    for(let i=0;i<4;i++){
-      m.set(key(cur), cur);
-      m.set(key(flip(cur)), flip(cur));
-      cur = rotate(cur);
-    }
+function rot(s){return s[0].map((_,i)=>s.map(r=>r[i]).reverse());}
+function flip(s){return s.map(r=>[...r].reverse());}
+
+let shapes=[];
+BASE.forEach(b=>{
+  let c=b;
+  for(let i=0;i<4;i++){
+    shapes.push(c,flip(c));
+    c=rot(c);
   }
-  return [...m.values()];
-}
-const SHAPES = genShapes(BASE_SHAPES);
-
-/* =========================
-   STATE + DOM
-========================= */
-let score = 0;
-let best = Number(localStorage.getItem('glassblocks_best') || 0);
-
-const scoreEl = document.getElementById('score');
-const bestEl = document.getElementById('best');
-bestEl.textContent = best;
-
-const board = Array.from({length:GRID},()=>Array(GRID).fill(null));
-
-const boardEl = document.getElementById('board');
-const piecesEl = document.getElementById('pieces');
-const proxy = document.getElementById('proxy');
-
-const overlay = document.getElementById('gameOver');
-const finalScoreEl = document.getElementById('finalScore');
-document.getElementById('restartBtn').onclick = () => location.reload();
-
-/* =========================
-   BOARD
-========================= */
-function renderBoard(){
-  boardEl.innerHTML = '';
-  for(let r=0;r<GRID;r++){
-    for(let c=0;c<GRID;c++){
-      const d = document.createElement('div');
-      d.className = 'cell';
-      d.dataset.r = r;
-      d.dataset.c = c;
-      boardEl.appendChild(d);
-    }
-  }
-}
-
-/* =========================
-   SIZING
-========================= */
-function boardCellSize(){
-  const first = boardEl.querySelector('.cell');
-  return first ? first.getBoundingClientRect().width : 0;
-}
-function syncHandSizes(){
-  const s = boardCellSize();
-  const hand = Math.max(10, Math.floor(s * HAND_SCALE));
-  document.querySelectorAll('.piece-cell').forEach(el=>{
-    el.style.width = el.style.height = hand + 'px';
-  });
-}
-function syncProxySizes(){
-  const s = boardCellSize();
-  proxy.querySelectorAll('.piece-cell').forEach(el=>{
-    el.style.width = el.style.height = s + 'px';
-  });
-}
-window.addEventListener('resize', ()=>{
-  syncHandSizes();
-  if(drag.active) syncProxySizes();
 });
 
-/* =========================
-   PIECES
-========================= */
-function spawnPieces(){
-  piecesEl.innerHTML = '';
+let board=[...Array(GRID)].map(()=>Array(GRID).fill(null));
+let score=0;
+let ability=null; // 'flip' or 'rotate'
+
+const abilityEl=document.getElementById('ability');
+const boardEl=document.getElementById('board');
+const piecesEl=document.getElementById('pieces');
+const proxy=document.getElementById('proxy');
+const scoreEl=document.getElementById('score');
+
+/* board */
+for(let r=0;r<GRID;r++)
+  for(let c=0;c<GRID;c++){
+    const d=document.createElement('div');
+    d.className='cell';
+    d.dataset.r=r; d.dataset.c=c;
+    boardEl.appendChild(d);
+  }
+
+/* spawn */
+function spawn(){
+  piecesEl.innerHTML='';
   for(let i=0;i<3;i++){
-    const shape = SHAPES[Math.random()*SHAPES.length|0];
-    const color = COLORS[Math.random()*COLORS.length|0];
-
-    const p = document.createElement('div');
-    p.className = 'piece';
-    p._shape = shape;
-    p._color = color;
-    p.style.gridTemplateColumns = `repeat(${shape[0].length}, 1fr)`;
-
-    for(const v of shape.flat()){
-      const d = document.createElement('div');
+    const shape=JSON.parse(JSON.stringify(shapes[Math.random()*shapes.length|0]));
+    const col=COLORS[Math.random()*COLORS.length|0];
+    const p=document.createElement('div');
+    p.className='piece';
+    p._shape=shape;
+    p._color=col;
+    p.style.gridTemplateColumns=`repeat(${shape[0].length},1fr)`;
+    shape.flat().forEach(v=>{
+      const c=document.createElement('div');
       if(v){
-        d.className = 'piece-cell';
-        d.style.setProperty('--c1', color.c1);
-        d.style.setProperty('--c2', color.c2);
+        c.className='piece-cell';
+        c.style.setProperty('--c1',col.c1);
+        c.style.setProperty('--c2',col.c2);
       }
-      p.appendChild(d);
-    }
-
-    p.addEventListener('pointerdown', startDrag);
+      p.appendChild(c);
+    });
+    p.onpointerdown=e=>dragStart(e,p);
     piecesEl.appendChild(p);
   }
-
-  requestAnimationFrame(()=> {
-    syncHandSizes();
-    checkGameOver();
-  });
 }
+spawn();
 
-/* =========================
-   DRAG
-========================= */
-const drag = {
-  active:false,
-  piece:null,
-  shape:null,
-  color:null,
-  pid:null,
-  offsetX:0,
-  offsetY:0,
-  pad:0
-};
+/* drag */
+let drag=null;
+function dragStart(e,p){
+  unlockAudio();
+  drag={p,shape:p._shape,color:p._color,ox:e.offsetX,oy:e.offsetY};
+  p.classList.add('dragging');
 
-function buildProxy(){
-  proxy.replaceChildren();
-  proxy.style.gridTemplateColumns = `repeat(${drag.shape[0].length}, 1fr)`;
+  // apply ability ON PICKUP
+  if(ability==='flip'){ drag.shape=flip(drag.shape); ability=null; }
+  if(ability==='rotate'){ drag.shape=rot(drag.shape); ability=null; }
+  abilityEl.textContent='';
 
-  for(const v of drag.shape.flat()){
-    const d = document.createElement('div');
+  proxy.innerHTML='';
+  proxy.style.display='grid';
+  proxy.style.gridTemplateColumns=`repeat(${drag.shape[0].length},1fr)`;
+  drag.shape.flat().forEach(v=>{
+    const d=document.createElement('div');
     if(v){
-      d.className = 'piece-cell';
-      d.style.setProperty('--c1', drag.color.c1);
-      d.style.setProperty('--c2', drag.color.c2);
+      d.className='piece-cell';
+      d.style.setProperty('--c1',drag.color.c1);
+      d.style.setProperty('--c2',drag.color.c2);
     }
     proxy.appendChild(d);
-  }
-
-  proxy.classList.add('wiggle');
-  proxy.style.display = 'grid';
-  syncProxySizes();
-}
-
-function startDrag(e){
-  e.preventDefault();
-  if(drag.active || overlay.classList.contains('show')) return;
-
-  unlockAudioOnce();
-
-  drag.active = true;
-  drag.piece = e.currentTarget;
-  drag.shape = drag.piece._shape;
-  drag.color = drag.piece._color;
-  drag.pid = e.pointerId;
-
-  const pieceRect = drag.piece.getBoundingClientRect();
-  drag.offsetX = e.clientX - pieceRect.left;
-  drag.offsetY = e.clientY - pieceRect.top;
-
-  drag.pad = parseFloat(getComputedStyle(drag.piece).paddingLeft) || 0;
-
-  drag.piece.classList.add('dragging');
-
-  buildProxy();
-  moveProxy(e.clientX, e.clientY);
-
-  drag.piece.setPointerCapture(e.pointerId);
-
-  window.addEventListener('pointermove', onMove, {passive:false});
-  window.addEventListener('pointerup', onUp, {passive:false});
-  window.addEventListener('pointercancel', onCancel, {passive:false});
-}
-
-function moveProxy(x,y){
-  proxy.style.left = (x - drag.offsetX) + 'px';
-  proxy.style.top  = (y - drag.offsetY) + 'px';
-}
-
-function onMove(e){
-  if(!drag.active || e.pointerId !== drag.pid) return;
-  e.preventDefault();
-  moveProxy(e.clientX, e.clientY);
-}
-
-function onUp(e){
-  if(!drag.active || e.pointerId !== drag.pid) return;
-  e.preventDefault();
-
-  const placed = tryPlace(e.clientX, e.clientY);
-
-  if(!placed){
-    drag.piece.classList.remove('dragging');
-    cleanupDrag();
-    checkGameOver();
-    return;
-  }
-
-  cleanupDrag();
-}
-
-function onCancel(e){
-  if(!drag.active || e.pointerId !== drag.pid) return;
-  drag.piece.classList.remove('dragging');
-  cleanupDrag();
-  checkGameOver();
-}
-
-function cleanupDrag(){
-  drag.active = false;
-  drag.piece = null;
-  drag.shape = null;
-  drag.color = null;
-  drag.pid = null;
-
-  proxy.classList.remove('wiggle');
-  proxy.style.display = 'none';
-  proxy.replaceChildren();
-
-  window.removeEventListener('pointermove', onMove);
-  window.removeEventListener('pointerup', onUp);
-  window.removeEventListener('pointercancel', onCancel);
-}
-
-/* =========================
-   PLACEMENT
-========================= */
-function boardGapPx(){
-  const g = parseFloat(getComputedStyle(boardEl).gap);
-  return Number.isFinite(g) ? g : 0;
-}
-
-function canPlaceShape(shape, r, c){
-  for(let i=0;i<shape.length;i++){
-    for(let j=0;j<shape[i].length;j++){
-      if(!shape[i][j]) continue;
-      const rr = r+i, cc = c+j;
-      if(rr<0 || cc<0 || rr>=GRID || cc>=GRID) return false;
-      if(board[rr][cc]) return false;
-    }
-  }
-  return true;
-}
-
-function tryPlace(pointerX, pointerY){
-  const boardRect = boardEl.getBoundingClientRect();
-  const size = boardCellSize();
-  const gap = boardGapPx();
-  const step = size + gap;
-
-  if(pointerX < boardRect.left || pointerY < boardRect.top ||
-     pointerX > boardRect.right || pointerY > boardRect.bottom) return false;
-
-  const proxyLeft = pointerX - drag.offsetX;
-  const proxyTop  = pointerY - drag.offsetY;
-
-  const contentLeft = proxyLeft + drag.pad;
-  const contentTop  = proxyTop  + drag.pad;
-
-  let col = Math.round((contentLeft - boardRect.left) / step);
-  let row = Math.round((contentTop  - boardRect.top)  / step);
-
-  const h = drag.shape.length;
-  const w = drag.shape[0].length;
-  row = Math.max(0, Math.min(GRID - h, row));
-  col = Math.max(0, Math.min(GRID - w, col));
-
-  if(!canPlaceShape(drag.shape, row, col)) return false;
-
-  placeShape(row, col);
-
-  // remove used piece immediately (so game over sees correct remaining hand)
-  drag.piece.remove();
-
-  // SFX for placement
-  playClick();
-
-  if(!piecesEl.querySelector('.piece')){
-    spawnPieces();
-  }
-
-  postMove();
-  return true;
-}
-
-function placeShape(r,c){
-  let blocks = 0;
-
-  for(let i=0;i<drag.shape.length;i++){
-    for(let j=0;j<drag.shape[i].length;j++){
-      if(!drag.shape[i][j]) continue;
-
-      board[r+i][c+j] = drag.color;
-      blocks++;
-
-      const el = document.querySelector(`.cell[data-r="${r+i}"][data-c="${c+j}"]`);
-      el.classList.add('filled');
-      el.style.background = `linear-gradient(135deg, ${drag.color.c1}, ${drag.color.c2})`;
-      el.style.setProperty('--glow', drag.color.c2);
-    }
-  }
-
-  score += blocks * 10;
-  updateScore();
-}
-
-function updateScore(){
-  scoreEl.textContent = score;
-  if(score > best){
-    best = score;
-    bestEl.textContent = best;
-    localStorage.setItem('glassblocks_best', String(best));
-  }
-}
-
-/* =========================
-   CLEARING
-========================= */
-function clearLines(){
-  const rows = [];
-  const cols = [];
-
-  for(let r=0;r<GRID;r++){
-    if(board[r].every(v=>v)) rows.push(r);
-  }
-  for(let c=0;c<GRID;c++){
-    if(board.every(row=>row[c])) cols.push(c);
-  }
-
-  if(!rows.length && !cols.length) return false;
-
-  const toClear = new Set();
-  for(const r of rows) for(let c=0;c<GRID;c++) toClear.add(`${r},${c}`);
-  for(const c of cols) for(let r=0;r<GRID;r++) toClear.add(`${r},${c}`);
-
-  toClear.forEach(key=>{
-    const [r,c] = key.split(',').map(Number);
-    const el = document.querySelector(`.cell[data-r="${r}"][data-c="${c}"]`);
-    el.classList.add('clearing');
-    el.classList.remove('filled');
   });
 
-  const lines = rows.length + cols.length;
-  score += (toClear.size * 6) + (lines * 60);
-  updateScore();
+  window.onpointermove=e=>{
+    proxy.style.left=e.clientX-drag.ox+'px';
+    proxy.style.top=e.clientY-drag.oy+'px';
+  };
+  window.onpointerup=e=>drop(e);
+}
 
-  // SFX on clear
-  playClick();
+function drop(e){
+  window.onpointermove=null;
+  window.onpointerup=null;
+  const rect=boardEl.getBoundingClientRect();
+  const size=rect.width/GRID;
+  const r=Math.round((e.clientY-rect.top)/size);
+  const c=Math.round((e.clientX-rect.left)/size);
 
-  setTimeout(()=>{
-    toClear.forEach(key=>{
-      const [r,c] = key.split(',').map(Number);
-      board[r][c] = null;
+  if(canPlace(drag.shape,r,c)){
+    place(drag.shape,r,c,drag.color);
+    drag.p.remove();
+    clickSound();
+    clearLines();
+    if(!piecesEl.children.length) spawn();
+  }else{
+    drag.p.classList.remove('dragging');
+  }
+  proxy.style.display='none';
+  drag=null;
+}
 
-      const el = document.querySelector(`.cell[data-r="${r}"][data-c="${c}"]`);
-      el.className = 'cell';
-      el.style.background = '';
-      el.style.removeProperty('--glow');
-    });
-  }, CLEAR_MS);
-
+function canPlace(s,r,c){
+  for(let i=0;i<s.length;i++)
+    for(let j=0;j<s[i].length;j++)
+      if(s[i][j]){
+        if(!board[r+i]||board[r+i][c+j]) return false;
+      }
   return true;
 }
 
-function postMove(){
-  const didClear = clearLines();
-  if(didClear){
-    setTimeout(()=>checkGameOver(), CLEAR_MS + 30);
-  } else {
-    checkGameOver();
-  }
+function place(s,r,c,col){
+  s.forEach((row,i)=>row.forEach((v,j)=>{
+    if(v){
+      board[r+i][c+j]=col;
+      const el=document.querySelector(`.cell[data-r="${r+i}"][data-c="${c+j}"]`);
+      el.classList.add('filled');
+      el.style.background=`linear-gradient(135deg,${col.c1},${col.c2})`;
+      el.style.setProperty('--glow',col.c2);
+    }
+  }));
+  score+=10;
+  scoreEl.textContent=score;
 }
 
-/* =========================
-   GAME OVER (none of the available pieces fit anywhere)
-========================= */
-function checkGameOver(){
-  if(overlay.classList.contains('show')) return;
+/* clearing + ability chance */
+function clearLines(){
+  let cleared=false;
+  for(let r=0;r<GRID;r++)
+    if(board[r].every(v=>v)){
+      board[r].fill(null);
+      document.querySelectorAll(`.cell[data-r="${r}"]`).forEach(c=>c.className='cell');
+      cleared=true;
+    }
 
-  const remaining = [...piecesEl.querySelectorAll('.piece')];
-  if(remaining.length === 0) return;
+  for(let c=0;c<GRID;c++)
+    if(board.every(r=>r[c])){
+      board.forEach(r=>r[c]=null);
+      document.querySelectorAll(`.cell[data-c="${c}"]`).forEach(c=>c.className='cell');
+      cleared=true;
+    }
 
-  for(const p of remaining){
-    const shape = p._shape;
-    for(let r=0;r<GRID;r++){
-      for(let c=0;c<GRID;c++){
-        if(canPlaceShape(shape, r, c)) return;
-      }
+  if(cleared){
+    clickSound();
+    // 🎯 ability roll
+    const roll=Math.random();
+    if(roll<0.15){
+      ability='flip';
+      abilityEl.textContent='Flip Ready ⬌';
+    }else if(roll<0.30){
+      ability='rotate';
+      abilityEl.textContent='Rotate Ready ⟳';
     }
   }
-
-  finalScoreEl.textContent = score;
-  overlay.classList.add('show');
 }
-
-/* =========================
-   INIT
-========================= */
-function init(){
-  setAudioUI();
-  renderBoard();
-  spawnPieces();
-  requestAnimationFrame(()=>syncHandSizes());
-  checkGameOver();
-}
-init();
 </script>
 </body>
 </html>

@@ -218,10 +218,22 @@ body{
 }
 .audio-btn.off{ opacity:.65; }
 
-/* small text fit for POWER box */
-#power{
-  font-size:16px;
-  letter-spacing:0.5px;
+/* ✅ Power pill (does NOT affect header layout) */
+.power-pill{
+  position:fixed;
+  top:14px;
+  left:50%;
+  transform:translateX(-50%);
+  z-index:25;
+  padding:8px 14px;
+  border-radius:999px;
+  background:rgba(30,41,59,.55);
+  border:1px solid rgba(255,255,255,.12);
+  box-shadow:0 10px 24px rgba(0,0,0,.35);
+  backdrop-filter: blur(10px);
+  font-size:18px;
+  opacity:.92;
+  pointer-events:none;
 }
 </style>
 </head>
@@ -232,13 +244,14 @@ body{
 <audio id="sfx" src="click.mp3" preload="auto"></audio>
 <button id="audioBtn" class="audio-btn off" aria-label="Toggle audio">🔇</button>
 
+<div id="powerPill" class="power-pill" style="display:none;">Power: —</div>
+
 <div class="emoji-rain" id="rain"></div>
 
 <div class="game">
   <div class="header">
     <div>Score: <span id="score">0</span></div>
     <div>Best: <span id="best">0</span></div>
-    <div>Power: <span id="power">—</span></div>
   </div>
 
   <div id="board" class="board"></div>
@@ -260,9 +273,9 @@ body{
 
 <script>
 /* =========================
-   AUDIO SYSTEM (FIXED)
+   AUDIO SYSTEM (stable)
    - first gesture unlocks only
-   - button is only toggle
+   - button is the only toggle
    - remembers setting
 ========================= */
 const bgm = document.getElementById('bgm');
@@ -278,7 +291,6 @@ function unlockAudioOnce(){
   audioUnlocked = true;
   bgm.volume = 0.35;
   sfx.volume = 0.65;
-  // unlock attempt (iOS/Safari style)
   bgm.play().then(() => bgm.pause()).catch(() => {});
 }
 
@@ -290,7 +302,6 @@ function setAudioUI(){
 function applyAudioState(){
   setAudioUI();
   if (!audioEnabled) { bgm.pause(); return; }
-  // Only try to play if already unlocked or user clicked (button click always unlocks)
   bgm.volume = 0.35;
   bgm.play().catch(()=>{});
 }
@@ -302,7 +313,7 @@ audioBtn.addEventListener('click', () => {
   applyAudioState();
 });
 
-// First interaction unlocks audio only (does NOT auto-enable)
+// unlock only (no auto-enable)
 window.addEventListener('pointerdown', () => {
   unlockAudioOnce();
 }, { once: true });
@@ -386,28 +397,29 @@ function genShapes(base){
   return [...m.values()];
 }
 const SHAPES = genShapes(BASE_SHAPES);
-
-// helpers to prevent accidental shared-mutation
-function cloneShape(shape){
-  return shape.map(row => row.slice());
-}
+function cloneShape(shape){ return shape.map(row => row.slice()); }
 
 /* =========================
-   POWERUPS (NEW)
+   POWER UPS (15% flip, 15% spin)
+   - award only if no current power
+   - apply to next placement
 ========================= */
+const powerPill = document.getElementById('powerPill');
 let power = null; // 'flip' | 'rotate' | null
-let powerUsedThisDrag = false; // consumed only on successful placement
-const powerEl = document.getElementById('power');
+let powerAppliedThisDrag = false;
 
-function setPower(newPower){
-  power = newPower;
-  if(!power) powerEl.textContent = '—';
-  else if(power === 'flip') powerEl.textContent = 'FLIP ⬌';
-  else if(power === 'rotate') powerEl.textContent = 'SPIN ⟳';
+function setPower(p){
+  power = p;
+  if(!power){
+    powerPill.style.display = 'none';
+    powerPill.textContent = 'Power: —';
+    return;
+  }
+  powerPill.style.display = 'block';
+  powerPill.textContent = power === 'flip' ? 'Power: FLIP ⬌' : 'Power: SPIN ⟳';
 }
 
 function maybeAwardPower(){
-  // only award if you don't already have one
   if(power) return;
   const roll = Math.random();
   if(roll < 0.15) setPower('flip');
@@ -481,7 +493,6 @@ window.addEventListener('resize', ()=>{
 function spawnPieces(){
   piecesEl.innerHTML = '';
   for(let i=0;i<3;i++){
-    // clone to avoid shared reference issues
     const shape = cloneShape(SHAPES[Math.floor(Math.random() * SHAPES.length)]);
     const color = COLORS[Math.floor(Math.random() * COLORS.length)];
 
@@ -553,19 +564,19 @@ function startDrag(e){
   drag.active = true;
   drag.piece = e.currentTarget;
 
-  // IMPORTANT: drag.shape is a clone so power effects don't mutate original piece
+  // IMPORTANT: clone so transforms don't mutate stored piece
   drag.shape = cloneShape(drag.piece._shape);
   drag.color = drag.piece._color;
   drag.pid = e.pointerId;
 
-  powerUsedThisDrag = false;
-  // Apply power to THIS drag preview, but only consume on successful placement
+  powerAppliedThisDrag = false;
+  // apply power visually for this drag, but consume only on successful placement
   if(power === 'flip'){
     drag.shape = flip(drag.shape);
-    powerUsedThisDrag = true;
+    powerAppliedThisDrag = true;
   } else if(power === 'rotate'){
     drag.shape = rotate(drag.shape);
-    powerUsedThisDrag = true;
+    powerAppliedThisDrag = true;
   }
 
   const pieceRect = drag.piece.getBoundingClientRect();
@@ -683,17 +694,14 @@ function tryPlace(pointerX, pointerY){
 
   placeShape(row, col);
 
-  // remove used piece immediately (so game over sees correct remaining hand)
+  // remove used piece immediately
   drag.piece.remove();
 
-  // consume power ONLY if placement succeeded using it
-  if(powerUsedThisDrag){
+  // consume power only if placement succeeded using it
+  if(powerAppliedThisDrag){
     setPower(null);
-  } else {
-    // keep UI as-is
   }
 
-  // SFX for placement
   playClick();
 
   if(!piecesEl.querySelector('.piece')){
@@ -765,10 +773,9 @@ function clearLines(){
   score += (toClear.size * 6) + (lines * 60);
   updateScore();
 
-  // SFX on clear
   playClick();
 
-  // POWER ROLL (NEW): 15% flip, 15% spin if you cleared anything
+  // ✅ power roll (15% flip, 15% spin)
   maybeAwardPower();
 
   setTimeout(()=>{
@@ -796,7 +803,7 @@ function postMove(){
 }
 
 /* =========================
-   GAME OVER (none of the available pieces fit anywhere)
+   GAME OVER
 ========================= */
 function checkGameOver(){
   if(overlay.classList.contains('show')) return;
@@ -822,8 +829,8 @@ function checkGameOver(){
 ========================= */
 function init(){
   setAudioUI();
-  applyAudioState();     // respects saved preference
-  setPower(null);        // power UI reset
+  applyAudioState();
+  setPower(null);
   renderBoard();
   spawnPieces();
   requestAnimationFrame(()=>syncHandSizes());

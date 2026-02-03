@@ -200,14 +200,32 @@ body{
   background: linear-gradient(135deg, #22d3ee, #0ea5e9);
   color:#0f172a;
 }
+
+/* audio button */
+.audio-btn{
+  position:fixed;
+  bottom:14px;
+  right:14px;
+  z-index:20;
+  background:rgba(30,41,59,.7);
+  border:1px solid rgba(255,255,255,.2);
+  border-radius:999px;
+  padding:10px 14px;
+  cursor:pointer;
+  font-family:'Shizuru', cursive;
+  color:white;
+  backdrop-filter: blur(6px);
+}
+.audio-btn.off{ opacity:.65; }
 </style>
 </head>
 
 <body>
 
-<!-- AUDIO (added safely) -->
+<!-- AUDIO (single, correct, no duplicates) -->
 <audio id="bgm" src="music.mp3" loop preload="auto"></audio>
-<audio id="clickSfx" src="click.mp3" preload="auto"></audio>
+<audio id="sfx" src="click.mp3" preload="auto"></audio>
+<button id="audioBtn" class="audio-btn" aria-label="Toggle audio">🔇</button>
 
 <div class="emoji-rain" id="rain"></div>
 
@@ -236,26 +254,62 @@ body{
 
 <script>
 /* =========================
-   AUDIO (minimal & safe)
+   AUDIO (REMEMBERED + NO DESYNC)
+   - Remembers ON/OFF in localStorage
+   - If ON, starts on first user gesture (browser requirement)
+   - Button always matches reality
 ========================= */
 const bgm = document.getElementById('bgm');
-const clickSfx = document.getElementById('clickSfx');
+const sfx = document.getElementById('sfx');
+const audioBtn = document.getElementById('audioBtn');
+
+const AUDIO_KEY = 'glassblocks_audio'; // 'on' or 'off'
+let audioEnabled = (localStorage.getItem(AUDIO_KEY) || 'on') === 'on';
 let audioUnlocked = false;
 
-function unlockAudio(){
-  if(audioUnlocked) return;
+bgm.volume = 0.35;
+sfx.volume = 0.7;
+
+function updateAudioUI(){
+  audioBtn.textContent = audioEnabled ? '🔊' : '🔇';
+  audioBtn.classList.toggle('off', !audioEnabled);
+}
+updateAudioUI();
+
+function unlockAudioOnce(){
+  if (audioUnlocked) return;
   audioUnlocked = true;
-  bgm.volume = 0.35;
-  clickSfx.volume = 0.7;
-  bgm.play().catch(()=>{});
+
+  // If user preference is ON, start immediately after unlock
+  if (audioEnabled){
+    bgm.play().catch(()=>{});
+  }
 }
 
-window.addEventListener('pointerdown', unlockAudio, { once:true });
+// First gesture unlocks audio; if enabled it starts automatically
+window.addEventListener('pointerdown', unlockAudioOnce, { once:true });
 
+// Toggle button
+audioBtn.addEventListener('click', () => {
+  unlockAudioOnce();
+  audioEnabled = !audioEnabled;
+  localStorage.setItem(AUDIO_KEY, audioEnabled ? 'on' : 'off');
+  updateAudioUI();
+
+  if (audioEnabled){
+    bgm.play().catch(()=>{});
+  } else {
+    bgm.pause();
+  }
+});
+
+// Click SFX helper
 function playClick(){
-  if(!audioUnlocked) return;
-  clickSfx.currentTime = 0;
-  clickSfx.play().catch(()=>{});
+  if (!audioEnabled || !audioUnlocked) return;
+  try{
+    sfx.currentTime = 0;
+    sfx.play().catch(()=>{});
+  } catch {}
 }
 
 /* =========================
@@ -269,9 +323,18 @@ for (let i=0; i<RAIN_COUNT; i++){
   const s = document.createElement('span');
   s.className = 'emoji';
   s.textContent = SYMBOLS[Math.random()*SYMBOLS.length|0];
-  s.style.left = Math.random()*100 + '%';
-  s.style.fontSize = (12 + Math.random()*18) + 'px';
-  s.style.animationDuration = (10 + Math.random()*18) + 's,' + (3.5 + Math.random()*4.5) + 's';
+
+  const left = Math.random()*100;
+  const size = 12 + Math.random()*18;
+  const fallDur = 10 + Math.random()*18;
+  const driftDur = 3.5 + Math.random()*4.5;
+  const delay = -Math.random()*fallDur;
+
+  s.style.left = left + '%';
+  s.style.fontSize = size + 'px';
+  s.style.animationDuration = `${fallDur}s, ${driftDur}s`;
+  s.style.animationDelay = `${delay}s, 0s`;
+
   rain.appendChild(s);
 }
 
@@ -304,10 +367,446 @@ const BASE_SHAPES = [
   [[1,0,1],[1,1,1]],
 ];
 
-/* everything below here is YOUR ORIGINAL LOGIC
-   with ONE change: playClick() on successful placement */
+function rotate(shape){ return shape[0].map((_,i)=>shape.map(r=>r[i]).reverse()); }
+function flip(shape){ return shape.map(r=>[...r].reverse()); }
+function key(shape){ return shape.map(r=>r.join('')).join('|'); }
+function genShapes(base){
+  const m = new Map();
+  for(const s of base){
+    let cur = s;
+    for(let i=0;i<4;i++){
+      m.set(key(cur), cur);
+      m.set(key(flip(cur)), flip(cur));
+      cur = rotate(cur);
+    }
+  }
+  return [...m.values()];
+}
+const SHAPES = genShapes(BASE_SHAPES);
 
-... 
+function cloneShape(shape){
+  return shape.map(row => row.slice());
+}
+
+/* =========================
+   STATE + DOM
+========================= */
+let score = 0;
+let best = Number(localStorage.getItem('glassblocks_best') || 0);
+
+const scoreEl = document.getElementById('score');
+const bestEl = document.getElementById('best');
+bestEl.textContent = best;
+
+const board = Array.from({length:GRID},()=>Array(GRID).fill(null));
+
+const boardEl = document.getElementById('board');
+const piecesEl = document.getElementById('pieces');
+const proxy = document.getElementById('proxy');
+
+const overlay = document.getElementById('gameOver');
+const finalScoreEl = document.getElementById('finalScore');
+const restartBtn = document.getElementById('restartBtn');
+
+/* =========================
+   BOARD
+========================= */
+function renderBoard(){
+  boardEl.innerHTML = '';
+  for(let r=0;r<GRID;r++){
+    for(let c=0;c<GRID;c++){
+      const d = document.createElement('div');
+      d.className = 'cell';
+      d.dataset.r = r;
+      d.dataset.c = c;
+      boardEl.appendChild(d);
+    }
+  }
+}
+
+/* =========================
+   SIZING
+========================= */
+function boardCellSize(){
+  const first = boardEl.querySelector('.cell');
+  return first ? first.getBoundingClientRect().width : 0;
+}
+function syncHandSizes(){
+  const s = boardCellSize();
+  const hand = Math.max(10, Math.floor(s * HAND_SCALE));
+  document.querySelectorAll('.piece-cell').forEach(el=>{
+    el.style.width = el.style.height = hand + 'px';
+  });
+}
+function syncProxySizes(){
+  const s = boardCellSize();
+  proxy.querySelectorAll('.piece-cell').forEach(el=>{
+    el.style.width = el.style.height = s + 'px';
+  });
+}
+window.addEventListener('resize', ()=>{
+  syncHandSizes();
+  if(drag.active) syncProxySizes();
+});
+
+/* =========================
+   PIECES
+========================= */
+function spawnPieces(){
+  piecesEl.innerHTML = '';
+  for(let i=0;i<3;i++){
+    const shape = cloneShape(SHAPES[Math.floor(Math.random() * SHAPES.length)]);
+    const color = COLORS[Math.floor(Math.random() * COLORS.length)];
+
+    const p = document.createElement('div');
+    p.className = 'piece';
+    p._shape = shape;
+    p._color = color;
+    p.style.gridTemplateColumns = `repeat(${shape[0].length}, 1fr)`;
+
+    // keep "empty" cells too so shape layout is correct
+    for(const v of shape.flat()){
+      const d = document.createElement('div');
+      if(v){
+        d.className = 'piece-cell';
+        d.style.setProperty('--c1', color.c1);
+        d.style.setProperty('--c2', color.c2);
+      }
+      p.appendChild(d);
+    }
+
+    p.addEventListener('pointerdown', startDrag);
+    piecesEl.appendChild(p);
+  }
+
+  requestAnimationFrame(()=> {
+    syncHandSizes();
+    checkGameOver();
+  });
+}
+
+/* =========================
+   DRAG
+========================= */
+const drag = {
+  active:false,
+  piece:null,
+  shape:null,
+  color:null,
+  pid:null,
+  offsetX:0,
+  offsetY:0,
+  pad:0
+};
+
+function buildProxy(){
+  proxy.replaceChildren();
+  proxy.style.gridTemplateColumns = `repeat(${drag.shape[0].length}, 1fr)`;
+
+  for(const v of drag.shape.flat()){
+    const d = document.createElement('div');
+    if(v){
+      d.className = 'piece-cell';
+      d.style.setProperty('--c1', drag.color.c1);
+      d.style.setProperty('--c2', drag.color.c2);
+    }
+    proxy.appendChild(d);
+  }
+
+  proxy.classList.add('wiggle');
+  proxy.style.display = 'grid';
+  syncProxySizes();
+}
+
+function startDrag(e){
+  e.preventDefault();
+  if(drag.active || overlay.classList.contains('show')) return;
+
+  drag.active = true;
+  drag.piece = e.currentTarget;
+  drag.shape = drag.piece._shape;
+  drag.color = drag.piece._color;
+  drag.pid = e.pointerId;
+
+  const pieceRect = drag.piece.getBoundingClientRect();
+  drag.offsetX = e.clientX - pieceRect.left;
+  drag.offsetY = e.clientY - pieceRect.top;
+
+  drag.pad = parseFloat(getComputedStyle(drag.piece).paddingLeft) || 0;
+
+  drag.piece.classList.add('dragging');
+
+  buildProxy();
+  moveProxy(e.clientX, e.clientY);
+
+  drag.piece.setPointerCapture(e.pointerId);
+
+  window.addEventListener('pointermove', onMove, {passive:false});
+  window.addEventListener('pointerup', onUp, {passive:false});
+  window.addEventListener('pointercancel', onCancel, {passive:false});
+}
+
+function moveProxy(x,y){
+  proxy.style.left = (x - drag.offsetX) + 'px';
+  proxy.style.top  = (y - drag.offsetY) + 'px';
+}
+
+function onMove(e){
+  if(!drag.active || e.pointerId !== drag.pid) return;
+  e.preventDefault();
+  moveProxy(e.clientX, e.clientY);
+}
+
+function onUp(e){
+  if(!drag.active || e.pointerId !== drag.pid) return;
+  e.preventDefault();
+
+  const placed = tryPlace(e.clientX, e.clientY);
+
+  if(!placed){
+    drag.piece.classList.remove('dragging');
+    cleanupDrag();
+    checkGameOver();
+    return;
+  }
+
+  cleanupDrag();
+}
+
+function onCancel(e){
+  if(!drag.active || e.pointerId !== drag.pid) return;
+  drag.piece.classList.remove('dragging');
+  cleanupDrag();
+  checkGameOver();
+}
+
+function cleanupDrag(){
+  drag.active = false;
+  drag.piece = null;
+  drag.shape = null;
+  drag.color = null;
+  drag.pid = null;
+
+  proxy.classList.remove('wiggle');
+  proxy.style.display = 'none';
+  proxy.replaceChildren();
+
+  window.removeEventListener('pointermove', onMove);
+  window.removeEventListener('pointerup', onUp);
+  window.removeEventListener('pointercancel', onCancel);
+}
+
+/* =========================
+   PLACEMENT
+========================= */
+function boardGapPx(){
+  const g = parseFloat(getComputedStyle(boardEl).gap);
+  return Number.isFinite(g) ? g : 0;
+}
+
+function canPlaceShape(shape, r, c){
+  for(let i=0;i<shape.length;i++){
+    for(let j=0;j<shape[i].length;j++){
+      if(!shape[i][j]) continue;
+      const rr = r+i, cc = c+j;
+      if(rr<0 || cc<0 || rr>=GRID || cc>=GRID) return false;
+      if(board[rr][cc]) return false;
+    }
+  }
+  return true;
+}
+
+function tryPlace(pointerX, pointerY){
+  const boardRect = boardEl.getBoundingClientRect();
+  const size = boardCellSize();
+  const gap = boardGapPx();
+  const step = size + gap;
+
+  if(pointerX < boardRect.left || pointerY < boardRect.top ||
+     pointerX > boardRect.right || pointerY > boardRect.bottom) return false;
+
+  const proxyLeft = pointerX - drag.offsetX;
+  const proxyTop  = pointerY - drag.offsetY;
+
+  const contentLeft = proxyLeft + drag.pad;
+  const contentTop  = proxyTop  + drag.pad;
+
+  let col = Math.round((contentLeft - boardRect.left) / step);
+  let row = Math.round((contentTop  - boardRect.top)  / step);
+
+  const h = drag.shape.length;
+  const w = drag.shape[0].length;
+  row = Math.max(0, Math.min(GRID - h, row));
+  col = Math.max(0, Math.min(GRID - w, col));
+
+  if(!canPlaceShape(drag.shape, row, col)) return false;
+
+  // Place
+  placeShape(row, col);
+
+  // SFX (only on success)
+  playClick();
+
+  // Remove used piece immediately
+  drag.piece.remove();
+
+  // If hand empty, deal new
+  if(!piecesEl.querySelector('.piece')){
+    spawnPieces();
+  }
+
+  postMove();
+  return true;
+}
+
+function placeShape(r,c){
+  let blocks = 0;
+
+  for(let i=0;i<drag.shape.length;i++){
+    for(let j=0;j<drag.shape[i].length;j++){
+      if(!drag.shape[i][j]) continue;
+
+      board[r+i][c+j] = drag.color;
+      blocks++;
+
+      const el = document.querySelector(`.cell[data-r="${r+i}"][data-c="${c+j}"]`);
+      el.classList.add('filled');
+      el.style.background = `linear-gradient(135deg, ${drag.color.c1}, ${drag.color.c2})`;
+      el.style.setProperty('--glow', drag.color.c2);
+    }
+  }
+
+  score += blocks * 10;
+  updateScore();
+}
+
+function updateScore(){
+  scoreEl.textContent = score;
+  if(score > best){
+    best = score;
+    bestEl.textContent = best;
+    localStorage.setItem('glassblocks_best', String(best));
+  }
+}
+
+/* =========================
+   CLEARING
+========================= */
+function clearLines(){
+  const rows = [];
+  const cols = [];
+
+  for(let r=0;r<GRID;r++){
+    if(board[r].every(v=>v)) rows.push(r);
+  }
+  for(let c=0;c<GRID;c++){
+    if(board.every(row=>row[c])) cols.push(c);
+  }
+
+  if(!rows.length && !cols.length) return false;
+
+  const toClear = new Set();
+  for(const r of rows) for(let c=0;c<GRID;c++) toClear.add(`${r},${c}`);
+  for(const c of cols) for(let r=0;r<GRID;r++) toClear.add(`${r},${c}`);
+
+  toClear.forEach(key=>{
+    const [r,c] = key.split(',').map(Number);
+    const el = document.querySelector(`.cell[data-r="${r}"][data-c="${c}"]`);
+    el.classList.add('clearing');
+    el.classList.remove('filled');
+  });
+
+  const lines = rows.length + cols.length;
+  score += (toClear.size * 6) + (lines * 60);
+  updateScore();
+
+  setTimeout(()=>{
+    toClear.forEach(key=>{
+      const [r,c] = key.split(',').map(Number);
+      board[r][c] = null;
+
+      const el = document.querySelector(`.cell[data-r="${r}"][data-c="${c}"]`);
+      el.className = 'cell';
+      el.style.background = '';
+      el.style.removeProperty('--glow');
+    });
+  }, CLEAR_MS);
+
+  return true;
+}
+
+function postMove(){
+  const didClear = clearLines();
+  if(didClear){
+    setTimeout(()=>checkGameOver(), CLEAR_MS + 30);
+  } else {
+    checkGameOver();
+  }
+}
+
+/* =========================
+   GAME OVER (none of the available pieces fit anywhere)
+========================= */
+function checkGameOver(){
+  if(overlay.classList.contains('show')) return;
+
+  const remaining = [...piecesEl.querySelectorAll('.piece')];
+  if(remaining.length === 0) return;
+
+  for(const p of remaining){
+    const shape = p._shape;
+    for(let r=0;r<GRID;r++){
+      for(let c=0;c<GRID;c++){
+        if(canPlaceShape(shape, r, c)) return;
+      }
+    }
+  }
+
+  finalScoreEl.textContent = score;
+  overlay.classList.add('show');
+}
+
+/* =========================
+   RESTART (NO PAGE RELOAD => music continues)
+========================= */
+function restartGame(){
+  // clear board state
+  for(let r=0;r<GRID;r++){
+    for(let c=0;c<GRID;c++){
+      board[r][c] = null;
+    }
+  }
+
+  // reset score
+  score = 0;
+  updateScore();
+
+  // clear board visuals
+  document.querySelectorAll('.cell').forEach(cell=>{
+    cell.className = 'cell';
+    cell.style.background = '';
+    cell.style.removeProperty('--glow');
+  });
+
+  // hide modal
+  overlay.classList.remove('show');
+
+  // respawn pieces
+  spawnPieces();
+}
+
+restartBtn.addEventListener('click', restartGame);
+
+/* =========================
+   INIT
+========================= */
+function init(){
+  renderBoard();
+  spawnPieces();
+  requestAnimationFrame(()=>syncHandSizes());
+  checkGameOver();
+}
+init();
 </script>
 </body>
 </html>

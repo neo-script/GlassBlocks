@@ -30,7 +30,7 @@ body{
   overflow:hidden;
 }
 
-/* On-screen crash banner (so you don't get "everything disappeared" silently) */
+/* On-screen crash banner (so game doesn't "vanish" silently) */
 #crashBanner{
   position:fixed;
   top:12px;
@@ -233,8 +233,11 @@ body{
   font-family:'Shizuru', cursive;
   color:white;
   backdrop-filter: blur(6px);
+  transition: opacity .15s ease;
 }
 .audio-btn.off{ opacity:.65; }
+/* “enabled but not unlocked yet” (pre-gesture) */
+.audio-btn.locked{ opacity:.7; }
 </style>
 </head>
 
@@ -245,7 +248,7 @@ body{
 <!-- AUDIO -->
 <audio id="bgm" src="music.mp3" loop preload="auto"></audio>
 <audio id="sfx" src="click.mp3" preload="auto"></audio>
-<button id="audioBtn" class="audio-btn off" aria-label="Toggle audio">🔇</button>
+<button id="audioBtn" class="audio-btn" aria-label="Toggle audio">🔇</button>
 
 <div class="emoji-rain" id="rain"></div>
 
@@ -283,14 +286,17 @@ function showCrash(msg){
   crashBanner.style.display = 'block';
   crashBanner.innerHTML =
     'GlassBlocks crashed: <code>' + String(msg).replace(/</g,'&lt;') + '</code><br>' +
-    'This usually means the file was saved as Rich Text or smart quotes were inserted. ' +
     'Open DevTools Console for details.';
 }
 window.addEventListener('error', (e)=>{ console.error(e); showCrash(e.message || e.error); });
 window.addEventListener('unhandledrejection', (e)=>{ console.error(e); showCrash(e.reason || 'Promise rejection'); });
 
 /* =========================
-   AUDIO (remembered + correct)
+   AUDIO (truthful UI)
+   - Button NEVER lies now:
+     OFF -> 🔇
+     ON but not unlocked yet -> 🔊 (dimmed)
+     ON + playing allowed -> 🔊 (normal)
 ========================= */
 const bgm = document.getElementById('bgm');
 const sfx = document.getElementById('sfx');
@@ -304,27 +310,47 @@ bgm.volume = 0.35;
 sfx.volume = 0.7;
 
 function updateAudioUI(){
+  // icon reflects preference
   audioBtn.textContent = audioEnabled ? '🔊' : '🔇';
   audioBtn.classList.toggle('off', !audioEnabled);
+
+  // if enabled but not yet unlocked, show locked styling + helpful label
+  const locked = audioEnabled && !audioUnlocked;
+  audioBtn.classList.toggle('locked', locked);
+  audioBtn.title = locked ? 'Tap anywhere to start music' : '';
 }
 updateAudioUI();
 
-function unlockAudioOnce(){
-  if (audioUnlocked) return;
-  audioUnlocked = true;
-  if (audioEnabled){
-    bgm.play().catch(()=>{});
-  }
+function attemptStartMusic(){
+  if (!audioEnabled) return;
+  bgm.play().then(()=>{
+    // success: unlocked
+    audioUnlocked = true;
+    updateAudioUI();
+  }).catch(()=>{
+    // still locked; UI will remain “locked”
+  });
 }
-window.addEventListener('pointerdown', unlockAudioOnce, { once:true });
 
-audioBtn.addEventListener('click', ()=>{
-  unlockAudioOnce();
+// First gesture: unlock + start if enabled
+window.addEventListener('pointerdown', () => {
+  // Mark unlocked only when play actually succeeds
+  attemptStartMusic();
+}, { once:true });
+
+audioBtn.addEventListener('click', () => {
+  // Toggle preference
   audioEnabled = !audioEnabled;
   localStorage.setItem(AUDIO_KEY, audioEnabled ? 'on' : 'off');
+
+  if (!audioEnabled){
+    bgm.pause();
+  } else {
+    // if user turned it on via button, try to start immediately
+    attemptStartMusic();
+  }
+
   updateAudioUI();
-  if (audioEnabled) bgm.play().catch(()=>{});
-  else bgm.pause();
 });
 
 function playClick(){
@@ -486,7 +512,6 @@ function spawnPieces(){
     p._color = color;
     p.style.gridTemplateColumns = `repeat(${shape[0].length}, 1fr)`;
 
-    // keep empty cells too so the layout is correct
     for(const v of shape.flat()){
       const d = document.createElement('div');
       if(v){
@@ -806,27 +831,18 @@ function restartGame(){
 restartBtn.addEventListener('click', restartGame);
 
 /* =========================
-   INIT (DOM-safe + self-healing)
+   INIT
 ========================= */
 function init(){
   renderBoard();
   spawnPieces();
+  requestAnimationFrame(()=>syncHandSizes());
+  checkGameOver();
 
-  requestAnimationFrame(()=>{
-    syncHandSizes();
-
-    // Self-heal if something weird stopped layout
-    if (boardEl.children.length !== GRID * GRID){
-      renderBoard();
-    }
-    if (!piecesEl.querySelector('.piece')){
-      spawnPieces();
-    }
-
-    checkGameOver();
-  });
+  // make button honest on load
+  // if enabled but locked, it shows "locked" dim state + tooltip
+  updateAudioUI();
 }
-
 document.addEventListener('DOMContentLoaded', init);
 </script>
 </body>

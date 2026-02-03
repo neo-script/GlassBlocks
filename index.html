@@ -30,6 +30,24 @@ body{
   overflow:hidden;
 }
 
+/* On-screen crash banner (so you don't get "everything disappeared" silently) */
+#crashBanner{
+  position:fixed;
+  top:12px;
+  left:50%;
+  transform:translateX(-50%);
+  z-index:99999;
+  max-width:min(720px, 92vw);
+  padding:10px 14px;
+  border-radius:14px;
+  background:rgba(220,38,38,.92);
+  border:1px solid rgba(255,255,255,.25);
+  box-shadow:0 16px 40px rgba(0,0,0,.45);
+  display:none;
+  font-size:16px;
+}
+#crashBanner code{ font-family: ui-monospace, SFMono-Regular, Menlo, monospace; }
+
 /* 🌧️ emoji rain */
 .emoji-rain{
   position:fixed;
@@ -222,7 +240,9 @@ body{
 
 <body>
 
-<!-- AUDIO (single set only) -->
+<div id="crashBanner"></div>
+
+<!-- AUDIO -->
 <audio id="bgm" src="music.mp3" loop preload="auto"></audio>
 <audio id="sfx" src="click.mp3" preload="auto"></audio>
 <button id="audioBtn" class="audio-btn off" aria-label="Toggle audio">🔇</button>
@@ -253,12 +273,21 @@ body{
 </div>
 
 <script>
+'use strict';
+
 /* =========================
-   FAILSAFE (so game doesn't "vanish" silently)
+   CRASH BANNER
 ========================= */
-window.addEventListener('error', (e) => {
-  console.error('GlassBlocks crashed:', e.error || e.message);
-});
+const crashBanner = document.getElementById('crashBanner');
+function showCrash(msg){
+  crashBanner.style.display = 'block';
+  crashBanner.innerHTML =
+    'GlassBlocks crashed: <code>' + String(msg).replace(/</g,'&lt;') + '</code><br>' +
+    'This usually means the file was saved as Rich Text or smart quotes were inserted. ' +
+    'Open DevTools Console for details.';
+}
+window.addEventListener('error', (e)=>{ console.error(e); showCrash(e.message || e.error); });
+window.addEventListener('unhandledrejection', (e)=>{ console.error(e); showCrash(e.reason || 'Promise rejection'); });
 
 /* =========================
    AUDIO (remembered + correct)
@@ -283,13 +312,13 @@ updateAudioUI();
 function unlockAudioOnce(){
   if (audioUnlocked) return;
   audioUnlocked = true;
-  if (audioEnabled) bgm.play().catch(()=>{});
+  if (audioEnabled){
+    bgm.play().catch(()=>{});
+  }
 }
-
-// unlock on first gesture; if enabled, music starts automatically
 window.addEventListener('pointerdown', unlockAudioOnce, { once:true });
 
-audioBtn.addEventListener('click', () => {
+audioBtn.addEventListener('click', ()=>{
   unlockAudioOnce();
   audioEnabled = !audioEnabled;
   localStorage.setItem(AUDIO_KEY, audioEnabled ? 'on' : 'off');
@@ -316,7 +345,7 @@ const RAIN_COUNT = 55;
 for (let i=0; i<RAIN_COUNT; i++){
   const s = document.createElement('span');
   s.className = 'emoji';
-  s.textContent = SYMBOLS[Math.random()*SYMBOLS.length|0];
+  s.textContent = SYMBOLS[Math.floor(Math.random()*SYMBOLS.length)];
 
   const left = Math.random()*100;
   const size = 12 + Math.random()*18;
@@ -377,10 +406,7 @@ function genShapes(base){
   return [...m.values()];
 }
 const SHAPES = genShapes(BASE_SHAPES);
-
-function cloneShape(shape){
-  return shape.map(row => row.slice());
-}
+function cloneShape(shape){ return shape.map(row => row.slice()); }
 
 /* =========================
    STATE + DOM
@@ -411,8 +437,8 @@ function renderBoard(){
     for(let c=0;c<GRID;c++){
       const d = document.createElement('div');
       d.className = 'cell';
-      d.dataset.r = r;
-      d.dataset.c = c;
+      d.dataset.r = String(r);
+      d.dataset.c = String(c);
       boardEl.appendChild(d);
     }
   }
@@ -429,13 +455,15 @@ function syncHandSizes(){
   const s = boardCellSize();
   const hand = Math.max(10, Math.floor(s * HAND_SCALE));
   document.querySelectorAll('.piece-cell').forEach(el=>{
-    el.style.width = el.style.height = hand + 'px';
+    el.style.width = hand + 'px';
+    el.style.height = hand + 'px';
   });
 }
 function syncProxySizes(){
   const s = boardCellSize();
   proxy.querySelectorAll('.piece-cell').forEach(el=>{
-    el.style.width = el.style.height = s + 'px';
+    el.style.width = s + 'px';
+    el.style.height = s + 'px';
   });
 }
 window.addEventListener('resize', ()=>{
@@ -458,6 +486,7 @@ function spawnPieces(){
     p._color = color;
     p.style.gridTemplateColumns = `repeat(${shape[0].length}, 1fr)`;
 
+    // keep empty cells too so the layout is correct
     for(const v of shape.flat()){
       const d = document.createElement('div');
       if(v){
@@ -472,7 +501,7 @@ function spawnPieces(){
     piecesEl.appendChild(p);
   }
 
-  requestAnimationFrame(()=> {
+  requestAnimationFrame(()=>{
     syncHandSizes();
     checkGameOver();
   });
@@ -528,7 +557,6 @@ function startDrag(e){
   drag.pad = parseFloat(getComputedStyle(drag.piece).paddingLeft) || 0;
 
   drag.piece.classList.add('dragging');
-
   buildProxy();
   moveProxy(e.clientX, e.clientY);
 
@@ -635,8 +663,8 @@ function tryPlace(pointerX, pointerY){
   if(!canPlaceShape(drag.shape, row, col)) return false;
 
   placeShape(row, col);
-  playClick();           // ✅ click sound only when placement succeeds
-  drag.piece.remove();   // ✅ remove piece immediately
+  playClick();
+  drag.piece.remove();
 
   if(!piecesEl.querySelector('.piece')){
     spawnPieces();
@@ -668,10 +696,10 @@ function placeShape(r,c){
 }
 
 function updateScore(){
-  scoreEl.textContent = score;
+  scoreEl.textContent = String(score);
   if(score > best){
     best = score;
-    bestEl.textContent = best;
+    bestEl.textContent = String(best);
     localStorage.setItem('glassblocks_best', String(best));
   }
 }
@@ -749,12 +777,12 @@ function checkGameOver(){
     }
   }
 
-  finalScoreEl.textContent = score;
+  finalScoreEl.textContent = String(score);
   overlay.classList.add('show');
 }
 
 /* =========================
-   RESTART (no reload => music continues)
+   RESTART (no reload => music keeps playing)
 ========================= */
 function restartGame(){
   for(let r=0;r<GRID;r++){
@@ -778,15 +806,28 @@ function restartGame(){
 restartBtn.addEventListener('click', restartGame);
 
 /* =========================
-   INIT
+   INIT (DOM-safe + self-healing)
 ========================= */
 function init(){
   renderBoard();
   spawnPieces();
-  requestAnimationFrame(()=>syncHandSizes());
-  checkGameOver();
+
+  requestAnimationFrame(()=>{
+    syncHandSizes();
+
+    // Self-heal if something weird stopped layout
+    if (boardEl.children.length !== GRID * GRID){
+      renderBoard();
+    }
+    if (!piecesEl.querySelector('.piece')){
+      spawnPieces();
+    }
+
+    checkGameOver();
+  });
 }
-init();
+
+document.addEventListener('DOMContentLoaded', init);
 </script>
 </body>
 </html>

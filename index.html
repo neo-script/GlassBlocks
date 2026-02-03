@@ -30,7 +30,7 @@ body{
   overflow:hidden;
 }
 
-/* 🌧️ random rain */
+/* 🌧️ emoji rain */
 .emoji-rain{
   position:fixed;
   inset:0;
@@ -222,10 +222,10 @@ body{
 
 <body>
 
-<!-- AUDIO (single, correct, no duplicates) -->
+<!-- AUDIO (single set only) -->
 <audio id="bgm" src="music.mp3" loop preload="auto"></audio>
 <audio id="sfx" src="click.mp3" preload="auto"></audio>
-<button id="audioBtn" class="audio-btn" aria-label="Toggle audio">🔇</button>
+<button id="audioBtn" class="audio-btn off" aria-label="Toggle audio">🔇</button>
 
 <div class="emoji-rain" id="rain"></div>
 
@@ -254,16 +254,20 @@ body{
 
 <script>
 /* =========================
-   AUDIO (REMEMBERED + NO DESYNC)
-   - Remembers ON/OFF in localStorage
-   - If ON, starts on first user gesture (browser requirement)
-   - Button always matches reality
+   FAILSAFE (so game doesn't "vanish" silently)
+========================= */
+window.addEventListener('error', (e) => {
+  console.error('GlassBlocks crashed:', e.error || e.message);
+});
+
+/* =========================
+   AUDIO (remembered + correct)
 ========================= */
 const bgm = document.getElementById('bgm');
 const sfx = document.getElementById('sfx');
 const audioBtn = document.getElementById('audioBtn');
 
-const AUDIO_KEY = 'glassblocks_audio'; // 'on' or 'off'
+const AUDIO_KEY = 'glassblocks_audio'; // 'on' | 'off'
 let audioEnabled = (localStorage.getItem(AUDIO_KEY) || 'on') === 'on';
 let audioUnlocked = false;
 
@@ -279,31 +283,21 @@ updateAudioUI();
 function unlockAudioOnce(){
   if (audioUnlocked) return;
   audioUnlocked = true;
-
-  // If user preference is ON, start immediately after unlock
-  if (audioEnabled){
-    bgm.play().catch(()=>{});
-  }
+  if (audioEnabled) bgm.play().catch(()=>{});
 }
 
-// First gesture unlocks audio; if enabled it starts automatically
+// unlock on first gesture; if enabled, music starts automatically
 window.addEventListener('pointerdown', unlockAudioOnce, { once:true });
 
-// Toggle button
 audioBtn.addEventListener('click', () => {
   unlockAudioOnce();
   audioEnabled = !audioEnabled;
   localStorage.setItem(AUDIO_KEY, audioEnabled ? 'on' : 'off');
   updateAudioUI();
-
-  if (audioEnabled){
-    bgm.play().catch(()=>{});
-  } else {
-    bgm.pause();
-  }
+  if (audioEnabled) bgm.play().catch(()=>{});
+  else bgm.pause();
 });
 
-// Click SFX helper
 function playClick(){
   if (!audioEnabled || !audioUnlocked) return;
   try{
@@ -464,7 +458,6 @@ function spawnPieces(){
     p._color = color;
     p.style.gridTemplateColumns = `repeat(${shape[0].length}, 1fr)`;
 
-    // keep "empty" cells too so shape layout is correct
     for(const v of shape.flat()){
       const d = document.createElement('div');
       if(v){
@@ -641,16 +634,10 @@ function tryPlace(pointerX, pointerY){
 
   if(!canPlaceShape(drag.shape, row, col)) return false;
 
-  // Place
   placeShape(row, col);
+  playClick();           // ✅ click sound only when placement succeeds
+  drag.piece.remove();   // ✅ remove piece immediately
 
-  // SFX (only on success)
-  playClick();
-
-  // Remove used piece immediately
-  drag.piece.remove();
-
-  // If hand empty, deal new
   if(!piecesEl.querySelector('.piece')){
     spawnPieces();
   }
@@ -745,7 +732,7 @@ function postMove(){
 }
 
 /* =========================
-   GAME OVER (none of the available pieces fit anywhere)
+   GAME OVER
 ========================= */
 function checkGameOver(){
   if(overlay.classList.contains('show')) return;
@@ -767,34 +754,27 @@ function checkGameOver(){
 }
 
 /* =========================
-   RESTART (NO PAGE RELOAD => music continues)
+   RESTART (no reload => music continues)
 ========================= */
 function restartGame(){
-  // clear board state
   for(let r=0;r<GRID;r++){
     for(let c=0;c<GRID;c++){
       board[r][c] = null;
     }
   }
 
-  // reset score
   score = 0;
   updateScore();
 
-  // clear board visuals
   document.querySelectorAll('.cell').forEach(cell=>{
     cell.className = 'cell';
     cell.style.background = '';
     cell.style.removeProperty('--glow');
   });
 
-  // hide modal
   overlay.classList.remove('show');
-
-  // respawn pieces
   spawnPieces();
 }
-
 restartBtn.addEventListener('click', restartGame);
 
 /* =========================
